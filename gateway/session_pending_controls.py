@@ -65,7 +65,12 @@ class PendingControls:
                 active = (prompt_id in self.remote_responders or
                           (not route.event.is_set() if prompt['kind'] == 'clarify' else
                            any(p['request_id'] == prompt_id for p in list_gateway_approvals(route))))
-                if prompt['execution_generation'] != generation or not active:
+                # A still-active prompt is authoritative evidence the session waits on a
+                # human. Keep it even when the resume snapshot carries no running generation
+                # (execution_state idle/waiting/unknown -> generation None) or a different one:
+                # pruning a live wait here wiped the parked clarify/approval card when the
+                # viewer returned to the session. Only inactive (settled) prompts are pruned.
+                if not active:
                     del self.pending[prompt_id]
                     self.remote_responders.pop(prompt_id, None)
                     self.events.publish(session_id, {'prompt_id': prompt_id,
